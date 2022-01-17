@@ -1,82 +1,52 @@
-version: '2.2'
+version: "3.7"
 
 services:
-
-  renderer-1:
-    privileged: true
-    build: ../motor-js/renderer
-    image: oawjs_renderer
-    cpus: 2
-    restart: always
-    command: node /opt/prerender/server.js
-    container_name: docker_renderer_1
-
-  renderer-2:
-    privileged: true
-    build: ../motor-js/renderer
-    image: oawjs_renderer
-    cpus: 2
-    restart: always
-    command: node /opt/prerender/server.js
-    container_name: docker_renderer_2
-
-  renderer-3:
-    privileged: true
-    build: ../motor-js/renderer
-    image: oawjs_renderer
-    cpus: 2
-    restart: always
-    command: node /opt/prerender/server.js
-    container_name: docker_renderer_3
-
-  proxy:
-    build: ../motor-js/proxy
-    image: oawjs_proxy
-    command: node /opt/proxy/index.js
-    restart: always
-    ports:
-      - "18088:18088"
-    container_name: oaw_proxy
-
-  nginx:
-    image: nginx:1.13.8-alpine
-    volumes:
-      - ../motor-js/nginx/reverse.conf:/etc/nginx/conf.d/default.conf
-      - ../motor-js/nginx/certs/server.crt:/etc/nginx/ssl/server.crt
-      - ../motor-js/nginx/certs/server.key:/etc/nginx/ssl/server.key
-    links:
-      - renderer-1
-      - renderer-2
-      - renderer-3
-    restart: always
-    shm_size: '1gb'
-    container_name: oaw_nginx
-
-  mysql:
-    image: mysql:5.7.21
-    command: --max_allowed_packet=32505856
-    ports:
-      - "55306:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-    volumes:
-      - "./mysql/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql"
-      - "./mysql/02_data.sql:/docker-entrypoint-initdb.d/02_data.sql"
-      - "./volumes/mysql/:/var/lib/mysql/"
-    container_name: oaw_mysql
-
   tomcat:
-    build: ./tomcat
-    ports:
-      - "18081:8080"
-      - "18444:8443"
-    volumes:
-      - "../portal/target/oaw.war:/usr/local/tomcat/webapps/oaw.war"
-      - "./tmp:/tmp"
-    dns:
-      - 192.168.4.9
-      - 192.168.4.10
-    links:
-      - mysql
     restart: always
-    container_name: oaw_tomcat
+    image: tomcat:8.5.73-jdk8-temurin
+    container_name: tomcat
+    depends_on:
+      - mail
+      - mysql
+    networks: 
+      - network-oaws
+    ports:
+      - 8080:8080
+    tmpfs:
+      - /usr/local/tomcat/webapps
+    volumes:
+      - ./oaw.war:/usr/local/tomcat/webapps/oaw.war
+  mysql:
+    restart: always
+    image: mysql:5.7.36
+    container_name: mysql
+    networks: 
+      - network-oaws
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_DATABASE: oaw
+      MYSQL_ROOT_PASSWORD: root
+    command:
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_general_ci
+      --explicit_defaults_for_timestamp=true
+      --lower_case_table_names=1
+      --max_allowed_packet=128M
+      --sql-mode="STRICT_TRANS_TABLES,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO"
+    volumes:
+      - ./dump.sql:/docker-entrypoint-initdb.d/dump.sql
+    tmpfs:
+      - /var/lib/mysql
+  mail:
+    image: munkyboy/fakesmtp
+    container_name: mail
+    ports: 
+      - "25:25"
+    networks: 
+      - network-oaws
+    volumes:
+      - ./fake-smtp-emails:/var/mail
+networks:
+  network-oaws:
+    name: network-oaws
