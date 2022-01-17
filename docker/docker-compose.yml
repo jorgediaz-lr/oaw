@@ -1,0 +1,52 @@
+version: "3.7"
+
+services:
+  tomcat:
+    restart: always
+    image: tomcat:8.5.73-jdk8-temurin
+    container_name: tomcat
+    depends_on:
+      - mail
+      - mysql
+    networks: 
+      - network-oaws
+    ports:
+      - 8080:8080
+    tmpfs:
+      - /usr/local/tomcat/webapps
+    volumes:
+      - ./oaw.war:/usr/local/tomcat/webapps/oaw.war
+  mysql:
+    restart: always
+    image: mysql:5.7.36
+    container_name: mysql
+    networks: 
+      - network-oaws
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_DATABASE: oaw
+      MYSQL_ROOT_PASSWORD: root
+    command:
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_general_ci
+      --explicit_defaults_for_timestamp=true
+      --lower_case_table_names=1
+      --max_allowed_packet=128M
+      --sql-mode="STRICT_TRANS_TABLES,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO"
+    volumes:
+      - ./dump.sql:/docker-entrypoint-initdb.d/dump.sql
+    tmpfs:
+      - /var/lib/mysql
+  mail:
+    image: munkyboy/fakesmtp
+    container_name: mail
+    ports: 
+      - "25:25"
+    networks: 
+      - network-oaws
+    volumes:
+      - ./fake-smtp-emails:/var/mail
+networks:
+  network-oaws:
+    name: network-oaws
